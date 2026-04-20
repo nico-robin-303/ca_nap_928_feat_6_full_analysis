@@ -1,0 +1,82 @@
+all_units_metadata <- data.frame(
+  provenience = c("UNIT 81", "UNIT 103", "UNIT 80", "UNIT 79", "UNIT 104", "UNIT 105", "UNIT 83",
+                  "UNIT 82", "UNIT 78", "Burial 46 Exposure", "UNIT 76", "UNIT 65", "UNIT 60", "UNIT 34",
+                  "UNIT 31", "UNIT 30", "UNIT 37", "UNIT 62", "UNIT 39", "UNIT 67", "Feature 56 Exposure",
+                  "UNIT 71", "UNIT 75", "UNIT 26", "UNIT 16", "UNIT 33", "UNIT 17", "UNIT 38",
+                  "UNIT 32", "UNIT 35", "UNIT 68", "UNIT 63", "UNIT 73", "UNIT 64", "UNIT 36",
+                  "UNIT 61", "UNIT 69", "UNIT 77", "UNIT 74", "UNIT 72", "UNIT 70", "UNIT 66"),
+  sw_easting = c(4, 6, 2, 0, -0.5, -2.5, -0.5, -0.5, -2.5, -2.5, -2.5, -2.5, -2.5, -2.5, 0, 0, 1, 1, 2, 3, 3,
+                 4, 5, 0, 0, 1, 1, 2, 2, 2, 3, 3, 4, 4, 4, 4, 5, 6, 6, 6, 6, 6),
+  sw_northing = c(-2.5, -2.5, -2.5, -2.5, -3.5, -2.5, -2, 0, -3.5, 2, 1, 0, -1, -2, -4, -6, -4, -5, -4, -4, -5,
+                  -4, -3.5, 0, -2, 0, -2, 0, -1, -2, 2, 0, 2, 0, -1, -2, 0, 2, 1, 0, -1, -2),
+  unit_width = c(2, 1, 2, 2, 0.5, 2, 0.5, 0.5, 2, 2, 2, 2, 2, 2, 1, 1, 1, 2, 1, 1, 1,
+                 1, 2, 1, 1, 1, 1, 1, 2, 2, 1, 1, 2, 1, 2, 2, 1, 2, 2, 2, 2, 2),
+  unit_length = c(0.5, 0.5, 0.5, 0.5, 1.5, 0.5, 2, 2, 1, 0.5, 1, 1, 1, 1, 1.5, 2, 1.5, 1, 1.5, 1.5, 1,
+                  1.5, 1, 2, 2, 2, 2, 2, 1, 1, 2, 2, 1, 2, 1, 1, 2, 1, 1, 1, 1, 1),
+  min_depth = c(25, 25, 30, 30, 35, 30, 35, 40, 30, 0, 30, 30, 30, 30, 30, 20, 30, 30, 30, 30, 20,
+                20, 20, 10, 20, 30, 20, 30, 30, 30, 30, 30, 20, 40, 30, 30, 30, 30, 20, 20, 0, 10),
+  max_depth = c(100, 100, 110, 120, 120, 120, 110, 105, 120, 75, 90, 100, 100, 100, 120, 110, 110, 120, 110, 110, 50,
+                100, 100, 100, 100, 90, 100, 100, 100, 110, 80, 100, 80, 90, 110, 80, 100, 100, 70, 90, 90, 90)
+  )%>%
+  mutate(
+    nw_easting = sw_easting,
+    nw_northing = sw_northing + unit_length,
+    ne_easting = sw_easting + unit_width,
+    ne_northing = sw_northing + unit_length,
+    se_easting = sw_easting + unit_width,
+    se_northing = sw_northing
+  )
+cat("all units coordinates and dimensions")
+print(all_units_metadata)
+  all_units_volumes <- all_units_metadata %>%
+    uncount(8, .id = "corner_num") %>%
+    mutate(
+      corner_id = case_when(
+        corner_num == 1 ~ "sw_top",
+        corner_num == 2 ~ "se_top",
+        corner_num == 3 ~ "ne_top",
+        corner_num == 4 ~ "nw_top",
+        corner_num == 5 ~ "sw_bot",
+        corner_num == 6 ~ "se_bot",
+        corner_num == 7 ~ "ne_bot",
+        corner_num == 8 ~ "nw_bot"
+      ),
+      easting = case_when(
+        corner_id %in% c("sw_top", "sw_bot", "nw_top", "nw_bot") ~ sw_easting,
+        corner_id %in% c("se_top", "se_bot", "ne_top", "ne_bot") ~ sw_easting + unit_width),
+      northing = case_when(
+        corner_id %in% c("ne_top", "ne_bot", "nw_top", "nw_bot") ~ sw_northing + unit_length,
+        corner_id %in% c("sw_top", "sw_bot", "se_top", "se_bot") ~ sw_northing),
+      depth = case_when(
+        corner_id %in% c("sw_top", "se_top", "ne_top", "nw_top") ~ min_depth,
+        corner_id %in% c("sw_bot", "se_bot", "ne_bot", "nw_bot") ~ max_depth)
+      ) %>%
+    select(provenience, corner_id, easting, northing, depth)
+  cat("first few 3d volume corners:")
+  head(all_units_volumes)
+  level_depth_mapping <- data.frame(
+    depth_cm = c("0-20", "100-110", "110-120", "20-30", "20-40", "25-30", "25-47", "28-50", "30-40", "30-50",
+                 "30-62", "30-65", "32-54", "33-50", "35-50", "35-55", "35-60", "35-65", "35-66", "36-50",
+                 "36-55", "38-56", "40-100", "40-50", "40-54", "40-64", "43-60", "43-63", "45-100", "45-54",
+                 "48-105", "48-64", "50-58", "50-60", "50-70", "50-80", "50-85", "55-70", "57-100", "57-104",
+                 "57-108", "57-80", "60-70", "60-71", "60-83", "60-90", "62-70", "62-74", "65-75", "65-80",
+                 "66-90", "67-74", "67-82", "68-81", "70-100", "70-110", "70-74", "70-80", "70-81", "70-86",
+                 "70-90", "73-81", "75-100", "75-120", "76-134", "77-116", "80-102", "80-90", "82-122", "90-100",
+                 "90-108", "90-112", "90-120", "95-114"),
+    level_mid_depth = c(10, 105, 115, 25, 30, 27.5, 36, 39, 35, 40,
+                        46, 47.5, 43, 41.5, 42.5, 45, 47.5, 50, 50.5, 43,
+                        45.5, 47, 70, 45, 47, 52, 51.5, 53, 72.5, 49.5,
+                        76.5, 56, 54, 55, 60, 65, 67.5, 62.5, 78.5, 80.5,
+                        82.5, 68.5, 65, 65.5, 71.5, 75, 66, 68, 70, 72.5,
+                        78, 70.5, 74.5, 74.5, 85, 90, 72, 75, 75.5, 78,
+                        80, 77, 87.5, 97.5, 105, 96.5, 91, 85, 102, 95,
+                        99, 101, 105, 104.5)
+  )
+  unit_wireframes <- create_clean_unit_wireframes(all_units_metadata)
+  cat("unit wireframes created:")
+  print(paste("number of line segments:",
+              nrow(unit_wireframes)))
+  print(paste("number of units:",
+              n_distinct(unit_wireframes$unit_id)))
+  print(paste("segments per unit:",
+              nrow(unit_wireframes)/ nrow(all_units_metadata)))
