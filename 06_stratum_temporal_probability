@@ -1,0 +1,89 @@
+temporal_probabilities_strats <- complete_joined_data_strats %>%
+  group_by(stratum, time_period) %>%
+  summarise(raw_affinity = sum(present) / n(), .groups = "drop") %>%
+  group_by(stratum) %>%
+  mutate(
+    total_affinity = sum(raw_affinity),
+    probability = raw_affinity / total_affinity) %>%
+  left_join(data.frame(time_period = chronological_order,
+                       chrono_weight = 1:13),
+            by = "time_period") %>%
+  mutate(stratum = factor(stratum, levels = c("3c", "3b", "3a", "3", "house floor", "2")))
+stratum_temporal_summary <- temporal_probabilities_strats %>%
+  group_by(stratum) %>%
+  summarise(
+    most_probable_period = time_period[which.max(probability)],
+    probability_score = max(probability),
+    temporal_span = max(chrono_weight[probability > 0.1]) - min(chrono_weight[probability > 0.1]),
+    distribution_entropy = -sum(probability * log(probability + 1e-10)),
+    .groups = "drop")
+bead_temporal_analysis_strats <-
+  complete_joined_data_strats %>%
+  filter(present == 1) %>%
+  group_by(bead_type_assemblage) %>%
+  summarise(
+    periods_present = n_distinct(time_period),
+    temporal_range = paste(sort(unique(time_period)),
+                           collapse = ", "),
+    total_occurrences = n(),
+    .groups = "drop") %>%
+  arrange(desc(periods_present))
+cat("bead types with widest temporal distributions:\n")
+print(bead_temporal_analysis_strats %>%
+        filter(periods_present > 3), n = 10)
+anomalous_occurrences_strats <-
+  complete_joined_data_strats %>%
+  filter(present == 1) %>%
+  left_join(scheme_d1_reference %>%
+              group_by(bead_type_assemblage) %>%
+              summarise(expected_periods = paste(sort(unique(time_period)),
+                                                 collapse = ", ")),
+            by = "bead_type_assemblage") %>%
+  mutate(
+    is_anomalous = ! str_detect(expected_periods, as.character(time_period))) %>%
+  filter(is_anomalous)
+cat("potentially anomalous bead occurrences:\n")
+print(anomalous_occurrences_strats %>%
+        select(stratum, bead_type_assemblage, time_period, expected_periods))
+bayesian_chronology_strats <-
+  temporal_probabilities_strats %>%
+  group_by(stratum) %>%
+  mutate(
+    stratigraphic_prior = 1 / (1 + abs(chrono_weight - cur_group_id())),
+    bayesian_posterior = probability * stratigraphic_prior,
+    bayesian_posterior = bayesian_posterior / sum(bayesian_posterior)) %>%
+  group_by(stratum) %>%
+  summarise(
+    bayesian_period = time_period[which.max(bayesian_posterior)],
+    bayesian_confidence = max(bayesian_posterior),
+    .groups = "drop")
+temporal_heatmap_strats <- ggplot(temporal_probabilities_strats,
+                                  aes(x = stratum, y = time_period, fill = probability)) +
+  geom_tile(color = "black") +
+  scale_fill_viridis_c(name = "Probability", option = "plasma") +
+  scale_y_discrete(limits = chronological_order) +
+  labs(
+    title = "Temporal Probability Distributions by Stratum",
+    subtitle = "Accounting for mixed assemblages and problematic bead types",
+    x = "Stratum",
+    y = "Time Period") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    text = element_text(family = "Avenir"))
+temporal_heatmap_strats
+final_robust_chronology <-
+  stratum_temporal_summary %>%
+  left_join(bayesian_chronology_strats, by = "stratum") %>%
+  left_join(
+    stratum_chronology_ordered %>%
+      select(stratum, max_affinity, confidence),
+    by = "stratum") %>%
+  mutate(has_temporal_mixing = temporal_span > 3,
+         has_low_confidence = probability_score < 0.7,
+         has_high_entropy = distribution_entropy > 1.0,
+         recommended_period = ifelse(has_temporal_mixing, bayesian_period, most_probable_period))
+  cat("stratum chronology with confidence flags:\n")
+  print(final_robust_chronology %>%
+          select(stratum, recommended_period, probability_score, temporal_span, has_temporal_mixing, has_low_confidence),
+        n = Inf)
