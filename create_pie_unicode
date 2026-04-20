@@ -1,0 +1,8 @@
+create_pie_unicode <- function(present, absent, present_char = "█", absent_char = "░") {
+    total <- present + absent
+    if (total == 0) return("-")
+    present_fraction <- present / total
+    filled_blocks <- round(present_fraction * 5)
+    bar_string <- paste0(strrep(present_char, filled_blocks), strrep(absent_char, 5 - filled_blocks))
+    return(bar_string)
+}
