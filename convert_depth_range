@@ -1,0 +1,8 @@
+convert_depth_range <- function(depth_range) {
+  bounds <- as.numeric(strsplit(as.character(depth_range), "-")[[1]])
+  if(length(bounds) == 2 && all(!is.na(bounds))) {
+    return(mean(bounds))
+  } else {
+    return(NA)
+  }
+}
