@@ -1,0 +1,131 @@
+unit_data <- feat_6_beads_frags_2 %>%
+  filter(context == "FEATURE 6")
+feats_burials_data <- feat_6_beads_frags_2 %>%
+  filter(context != "FEATURE 6")
+print(paste("unit records (feature 6):", nrow(unit_data)))
+print(paste("feat/burial records:", nrow(feats_burials_data)))
+unit_artifact_data_with_depths <- unit_data %>%
+  filter(!is.na(depth_cm)) %>%
+  left_join(level_depth_mapping, by = "depth_cm") %>%
+  filter(!is.na(level_mid_depth))
+cat("using manual level depth mapping:")
+print(table(unit_artifact_data_with_depths$depth_cm))
+unit_bead_aggregates <- unit_artifact_data_with_depths %>%
+  filter(shell_type_clean %in% c("bead complete","bead fragment")) %>%
+  group_by(provenience, depth_cm, level_mid_depth, bead_type) %>%
+  summarise(
+    bead_count = sum(count, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  pivot_wider(
+    names_from = bead_type,
+    values_from = bead_count,
+    values_fill = 0
+  )
+unit_shell_aggregates <- unit_artifact_data_with_depths %>%
+  filter(shell_type_clean %in% c("Whole Shell","Fragment")) %>%
+  group_by(provenience, depth_cm, level_mid_depth, shell_type_clean) %>%
+  summarise(
+    shell_count = sum(count, na.rm = TRUE),
+    shell_weight = sum(weight_gr, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  pivot_wider(
+    names_from = shell_type_clean,
+    values_from = c(shell_count, shell_weight),
+    names_sep = "-",
+    values_fill = 0
+  )
+cat("bead aggregates preview:")
+glimpse(unit_bead_aggregates)
+cat("shell aggregates preview:")
+glimpse(unit_shell_aggregates)
+all_unit_aggregates <- full_join(
+  unit_bead_aggregates, unit_shell_aggregates, by = c("provenience", "depth_cm", "level_mid_depth")
+) %>%
+  mutate(across(where(is.numeric), ~ replace_na(., 0)))
+all_unit_aggregates <- all_unit_aggregates %>%
+  mutate(across(where(is.character) & matches("^[A-Z]\\d"), as.numeric)) %>%
+  mutate(across(matches("^[A-Z]\\d"), ~ replace_na(., 0)))
+cat("data types after conversion:")
+glimpse(all_unit_aggregates %>% select(1:10))
+all_unit_aggregates <- all_unit_aggregates %>%
+  mutate(
+    total_beads = rowSums(across(matches("^[A-Z]\\d")), na.rm = TRUE),
+    total_shell_count = `shell_count-Whole Shell` + `shell_count-Fragment`,
+    total_shell_weight = `shell_weight-Whole Shell` + `shell_weight-Fragment`
+  )
+all_unit_aggregates_final <- all_unit_aggregates %>%
+  filter(provenience %in% all_units_metadata$provenience)
+cat("final aggregated data:")
+glimpse(all_unit_aggregates_final)
+unit_coverage_summary <- all_unit_aggregates_final %>%
+  summarise(
+    n_units = n_distinct(provenience),
+    n_levels = n_distinct(depth_cm),
+    total_bead_records = sum(total_beads),
+    total_shell_records = sum(total_shell_count),
+    units_with_beads = sum(total_beads > 0),
+    units_with_shell = sum(total_shell_count > 0)
+  )
+cat("data coverage summary:")
+print(unit_coverage_summary)
+feats_burials_aggregates <- feats_burials_data %>%
+  mutate(
+    level_depth = ifelse(!is.na(depth_cm),
+                         sapply(depth_cm,
+                                function(x) {
+                                  bounds <- as.numeric(strsplit(as.character(x), "-")[[1]])
+                                  mean(bounds)
+                                }),
+                         NA
+    )) %>%
+  filter(!is.na(level_depth)) %>%
+  group_by(context, depth_cm, level_depth) %>%
+  summarise(
+    total_beads = sum(count[shell_type_clean %in% c("bead complete", "bead fragment")], na.rm = TRUE),
+    shell_count_Whole_Shell = sum(count[shell_type_clean == "Whole Shell"], na.rm = TRUE),
+    shell_count_Fragment = sum(count[shell_type_clean == "Fragment"], na.rm = TRUE),
+    shell_weight_Whole_Shell = sum(weight_gr[shell_type_clean == "Whole Shell"], na.rm = TRUE),
+    shell_weight_Fragment = sum(weight_gr[shell_type_clean == "Fragment"], na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  mutate(
+    total_shell_count = shell_count_Whole_Shell + shell_count_Fragment,
+    total_shell_weight = shell_weight_Whole_Shell + shell_weight_Fragment
+  )
+cat("feat/burial aggregates:")
+glimpse(feats_burials_aggregates)
+feats_burials_spatial_aggregates <- feats_burials_aggregates %>%
+  left_join(feats_burials_spatial_metadata, by = "context") %>%
+  mutate(
+    aggregate_easting = centroid_easting,
+    aggregate_northing = centroid_northing,
+    aggregate_depth = centroid_depth
+  )
+cat("features/burials spatial aggregates:")
+glimpse(feats_burials_spatial_aggregates)
+unit_spatial_aggregates <- all_unit_aggregates_final %>%
+  left_join(all_units_metadata, by = "provenience") %>%
+  mutate(
+    aggregate_easting = sw_easting + (unit_width / 2),
+    aggregate_northing = sw_northing + (unit_length / 2),
+    aggregate_depth = level_mid_depth,
+    data_type = "unit/level"
+  )
+feats_burials_for_viz <- feats_burials_spatial_aggregates %>%
+  mutate(
+    data_type = "feature/burial"
+  )
+all_artifact_spatial_data <- bind_rows(
+  unit_spatial_aggregates %>%
+    select(provenience, aggregate_easting, aggregate_northing, aggregate_depth, total_beads,
+           total_shell_count, total_shell_weight, data_type) %>%
+    rename(context_id = provenience),
+  feats_burials_for_viz %>%
+    select(context, aggregate_easting, aggregate_northing, aggregate_depth, total_beads,
+           total_shell_count, total_shell_weight, data_type) %>%
+    rename(context_id = context)
+)
+cat("combined spatial data:")
+glimpse(all_artifact_spatial_data)
