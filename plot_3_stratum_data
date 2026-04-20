@@ -1,0 +1,55 @@
+stratum_data_summary_for_plot_3 <- feat_6_beads_frags %>%
+  mutate(bead_class = str_sub(bead_type, 1, 1)) %>%
+  filter(!is.na(bead_type),
+           !is.na(stratum)) %>%
+  mutate(
+    stratum_group = case_when(
+      str_detect(stratum, "^3") ~ "Stratum 3",
+      stratum == "2" ~ "Stratum 2",
+      stratum == "house floor" ~ "House Floor Stratum",
+      TRUE ~ as.character(stratum)
+    )
+  ) %>%
+  group_by(stratum_group, bead_class, bead_type) %>%
+  summarise(
+    count = sum(count, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  group_by(stratum_group) %>%
+  mutate(
+    total_stratum = sum(count),
+    percent_of_stratum = (count / total_stratum) * 100
+  ) %>%
+  ungroup() %>%
+  mutate(
+    stratum_group = factor(stratum_group, levels = c("Stratum 3", "House Floor Stratum", "Stratum 2")))
+View(stratum_data_summary_for_plot_3)
+stratum_data_plot_3 <- ggplot(
+  stratum_data_summary_for_plot_3,
+  aes(x = bead_class, y = percent_of_stratum, fill = bead_type)
+) +
+  geom_bar(stat = "identity", position = "stack", width = 0.8) +
+  scale_fill_manual(values = bead_type_colors, name = "Bead Type") +
+  facet_wrap(~ stratum_group, nrow = 1, scales = "free_x") +
+  labs(
+    title = "Bead Assemblage Composition by Stratum",
+    subtitle = "Stratum 3 includes sub-strata 3, 3a, 3b, and 3c",
+    x = "Bead Class",
+    y = "Percentage of Stratum Assemblage (%)"
+  ) +
+  theme_minimal() +
+  theme(
+    text = element_text(family = "Avenir"),
+    plot.title = element_text(face = "bold", size = 14),
+    plot.subtitle = element_text(size = 11, color = "gray40"),
+    axis.title = element_text(size = 12),
+    axis.text = element_text(size = 10),
+    legend.text = element_text(size = 10),
+    legend.title = element_text(face = "bold", size = 11),
+    legend.position = "right",
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.key.size = unit(8, "pt"),
+    strip.text = element_text(face = "bold", size = 11),
+    strip.background = element_rect(fill = "gray90", color = "gray80")
+  )
+stratum_data_plot_3
