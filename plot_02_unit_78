@@ -1,0 +1,63 @@
+unit_78_3_summary_for_plot_2 <- feat_6_beads_frags %>% 
+  filter(provenience == "UNIT 78") %>%
+  filter(!is.na(bead_type)) %>%
+  mutate(bead_class = str_sub(bead_type, 1, 1)) %>%
+  filter(bead_class %in% c("C", "M")) %>%
+  mutate(bead_type = factor(bead_type)) %>%
+  group_by(depth_cm, bead_class, bead_type) %>%
+  summarise(
+    bead_count = sum(count, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(depth_cm = factor(depth_cm, levels = c("110-120", "100-110", "90-100", "80-90", "70-80", "60-70", "50-60", "40-50", "30-40"))) %>%
+  group_by(bead_type) %>%
+  mutate(
+    total_appearances = sum(bead_count > 0), 
+    plot_type = if_else(total_appearances == 1, "single_occurrences", "multiple_occurrences")
+  ) %>%
+  ungroup()
+View(unit_78_3_summary_for_plot_2)
+unit_78_3_plot_2 <- ggplot(unit_78_3_summary_for_plot_2, 
+                           aes(x = depth_cm, y = bead_count,
+                               group = bead_type)) +
+  geom_line(
+    aes(color = bead_type),
+    linewidth = 1,
+    alpha = 0.7,
+    position = position_dodge(width = 0.5)
+  ) +
+  geom_point(
+    aes(color = bead_type, shape = plot_type),
+    size = 4,
+    alpha = 3.3,
+    position = position_dodge(width = 0.5)
+  ) +
+  scale_color_manual(values = bead_type_colors,
+                     name = "Bead Type"
+                     ) +
+  scale_shape_manual(
+    name = "Occurrence",
+    values = c(multiple_occurrences = 18, single_occurrences = 17),
+    labels = c(multiple_occurrences = "Multiple Levels", single_occurrences = "Single Levels")
+  ) + 
+  labs(
+    title = "Unit 78 Frequency of C and M Types by Arbitrary 10cm Level",
+    x = "Depth (cm)",
+    y = "Number of Beads"
+  ) +
+  theme_minimal() +
+  theme(
+    text = element_text(family = "Avenir"),
+    plot.title = element_text(face = "bold", size = 14),
+    axis.title = element_text(size = 12),
+    axis.text = element_text(size = 10),
+    legend.text = element_text(size = 10),
+    legend.title = element_text(face = "bold", size = 11),
+    legend.position = "right",
+    legend.key.height = unit(12, "pt"),
+    legend.spacing.y = unit(8, "pt"),
+    legend.margin = margin(10, 10, 10, 10),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.key.size = unit(8, "pt")
+  )
+unit_78_3_plot_2
