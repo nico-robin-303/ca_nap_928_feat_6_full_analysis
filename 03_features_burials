@@ -1,0 +1,26 @@
+feats_burials_spatial_metadata <- data.frame(
+  context = c("BURIAL 44", "BURIAL 46", "BURIAL 47", "BURIAL 48", "BURIAL 50",
+              "BURIAL 51", "BURIAL 55", "FEATURE 2", "FEATURE 56", "FEATURE 61",
+              "FEATURE 63", "FEATURE 67", "FEATURE 6b", "FEATURE 6c", "FEATURE 6e",
+              "FEATURE 6g", "FEATURE 6h", "FEATURE 6i", "FEATURE 6j", "FEATURE 6k",
+              "FEATURE 6n", "FEATURE 6p", "FEATURE 6s", "FEATURE 6v"
+              ),
+  centroid_easting = c(4.4, -1.7, 4.5, 4.3, 3,
+                       2.2, 6.5, 1.2, 3.4, 3.2,
+                       2.7, -2.4, 5.8, 5.1, 7.5,
+                       0.4, 0.6, 2.5, 4.4, 3.7,
+                       4.5, 0.4, 5.5, -0.8
+                       ),
+  centroid_northing = c(-1.1, 1.7, -0.8, -0.9, -1.5,
+                        -0.7, 0.3, -0.8, -4.7, 0.9,
+                        -3.7, 0.5, -1.7, 0.7, -1.2,
+                        -1.6, -2.7, 0.4, -0.5, -1.9,
+                        -1.8, -4.8, -2.1, -2.2
+                        ),
+  centroid_depth = c(85, 101, 95, 104.5, 65,
+                     80, 96.5, 30, 51, 50.5,
+                     50, 42.5, 70.5, 84, 82.5,
+                     73, 81, 60, 74.5, 77,
+                     72.5, 110, 95.5, 77
+                     )
+)
