@@ -1,0 +1,133 @@
+bead_morphology_2 <- feat_6_beads_frags_2 %>%
+  mutate(
+    width_length_index = width / length,
+    perfect_square_diagonal = sqrt(length^2 + width^2),
+    angle_index = long_diagonal / perfect_square_diagonal,
+    diagonal_index = long_diagonal / short_diagonal,
+    perf_width_index = perforation_diameter / width,
+    pcurve = (curvature - thickness) / thickness,
+    thickness_width_index = thickness / width,
+    volume_estimate = length * width * thickness,
+    sphericity_index = (36 * pi * volume_estimate^2)^(1/3) / (length + width +thickness)) %>%
+  mutate(across(where(is.numeric),
+                ~ ifelse(is.infinite(.) | is.nan(.), NA, .)))
+cat("bead morphology indices calculated:\n")
+glimpse(bead_morphology_2 %>%
+          select(bead_type, length, width, width_length_index, angle_index, perf_width_index))
+morphology_summary_2 <- bead_morphology_2 %>%
+  group_by(bead_type) %>%
+  summarise(
+    n = n(),
+    wl_mean = mean(width_length_index, na.rm = TRUE),
+    wl_sd = sd(width_length_index, na.rm = TRUE),
+    wl_cv = wl_sd / wl_mean,
+    angle_mean = mean(angle_index, na.rm = TRUE),
+    angle_sd = sd(angle_index, na.rm = TRUE),
+    diag_mean = mean(diagonal_index, na.rm = TRUE),
+    diag_sd = sd(diagonal_index, na.rm = TRUE),
+    perf_mean = mean(perf_width_index, na.rm = TRUE),
+    perf_sd = sd(perf_width_index, na.rm = TRUE),
+    pcurv_mean = mean(pcurve, na.rm = TRUE),
+    pcurv_sd = sd(pcurve, na.rm = TRUE),
+    .groups = "drop") %>%
+  filter(n >= 3)
+cat("morphological summary by bead type:\n")
+print(morphology_summary_2, n = 23)
+all_beads_summary_for_table_19 <- bead_morphology_2 %>%
+  mutate(
+    super_category = case_when(
+      shell_type_clean %in% c("bead complete", "bead fragment") ~
+        "Beads",
+      TRUE ~ "Other/Unidentified"
+    )
+  ) %>%
+  group_by(super_category,
+           bead_type, shell_type_clean, bead_frag_portion) %>%
+  summarise(
+    n = sum(count, na.rm = TRUE),
+    mean_diameter = mean(diameter, na.rm = TRUE),
+    mean_length = mean(length, na.rm = TRUE),
+    mean_width = mean(width, na.rm = TRUE),
+    mean_perf_diameter = mean(perforation_diameter, na.rm = TRUE),
+    mean_curvature = mean(curvature, na.rm = TRUE),
+    mean_thickness = mean(thickness, na.rm = TRUE),
+    shelf_p = sum(shelf == "p", na.rm = TRUE),
+    shelf_a = sum(shelf == "a", na.rm = TRUE),
+    burnt_y = sum(burnt == "y", na.rm = TRUE),
+    burnt_n = sum(burnt == "n", na.rm = TRUE),
+    mean_angle_index = mean(angle_index, na.rm = TRUE),
+    mean_diagonal_index = mean(diagonal_index, na.rm = TRUE),
+    mean_perf_width_index = mean(perf_width_index, na.rm = TRUE),
+    mean_pcurve = mean(pcurve, na.rm = TRUE),
+    mean_thickness_width_index = mean(thickness_width_index, na.rm = TRUE),
+    mean_volume_estimate = mean(volume_estimate, na.rm = TRUE),
+    mean_sphericity_index = mean(sphericity_index, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(bead_type = case_when(
+    is.na(bead_type) ~ paste("-", shell_type_clean),
+    shell_type_clean == "bead fragment" ~ paste0(
+      bead_type, "<span style='font-size: 10px;'> (</span>", 
+      case_when(
+        bead_frag_portion == "1 quarter" ~ "<span style='font-size: 10px;'>¼ bead</span>",
+        bead_frag_portion == "half" ~ "<span style='font-size: 10px;'>½ bead</span>",
+        bead_frag_portion == "3 quarter" ~ "<span style='font-size: 10px;'>¾ bead</span>",
+        bead_frag_portion == "2 halves" ~ "<span style='font-size: 10px;'>re-fit: ½ + ½</span>",
+        bead_frag_portion == "half, 1 quarter" ~ "<span style='font-size: 10px;'>re-fit: ½ + ¼</span>",
+        is.na(bead_frag_portion) ~ "<span style='font-size: 10px;'>frag</span>",
+        is.nan(bead_frag_portion) ~ "<span style='font-size: 10px;'>frag</span>",
+        TRUE ~ bead_frag_portion
+      ),
+      "<span style='font-size: 10px;'>)</span>"
+    ),
+    TRUE ~ as.character(bead_type)
+  )
+  ) %>%
+  arrange(super_category, bead_type)
+View(all_beads_summary_for_table_19)
+all_beads_display_for_table_19 <- all_beads_summary_for_table_19 %>%
+  rowwise() %>%
+  mutate(
+    shelf_pie =
+      create_pie_unicode(shelf_p, shelf_a, "█", "░"),
+    burnt_pie =
+      create_pie_unicode(burnt_y, burnt_n, "█", "░")
+  ) %>%
+  ungroup() %>%
+  mutate(
+    mean_diameter = round(mean_diameter, 2),
+    mean_length = round(mean_length, 2),
+    mean_width = round(mean_width, 2),
+    mean_perf_diameter = round(mean_perf_diameter, 2),
+    mean_curvature = round(mean_curvature, 2),
+    mean_thickness = round(mean_thickness, 2),
+    mean_angle_index = round(mean_angle_index, 2),
+    mean_diagonal_index = round(mean_diagonal_index, 2),
+    mean_perf_width_index = round(mean_perf_width_index, 2),
+    mean_pcurve = round(mean_pcurve, 2),
+    mean_thickness_width_index = round(mean_thickness_width_index, 2),
+    mean_volume_estimate = round(mean_volume_estimate, 2),
+    mean_sphericity_index = round(mean_sphericity_index, 2),
+    across(c(n, mean_diameter, mean_length, mean_width, mean_perf_diameter, mean_curvature, mean_thickness,
+             mean_angle_index, mean_diagonal_index, mean_perf_width_index, mean_pcurve, mean_thickness_width_index,
+             mean_volume_estimate, mean_sphericity_index), ~
+             replace(., is.na(.) | is.nan(.), "-"))
+  ) %>%
+  select(bead_type, n, mean_diameter, mean_length, mean_width, mean_perf_diameter, mean_curvature, mean_thickness, shelf_pie, burnt_pie,
+         mean_angle_index, mean_diagonal_index, mean_perf_width_index, mean_pcurve, mean_thickness_width_index, mean_volume_estimate, mean_sphericity_index)
+View(all_beads_display_for_table_19)
+all_beads_table_19 <- all_beads_display_for_table_19 %>%
+  kbl(
+    col.names = c("Bead Type / Shell Category", "Count (n)", "Mean Diameter", "Mean Length", "Mean Width", "Mean Perforation Diameter", "Mean Curvature", "Mean Thickness",
+                  "Shelf Presence <div style='font-size: 10px; line-height: 1.4;'>█ = present</div><div style='font-size: 10px; line-height: 1.4;'>░ = absent</div>",
+                  "Burnt <div style='font-size: 10px; line-height: 1.4;'>█ = yes</div><div style='font-size: 10px; line-height: 1.4;'>░ = no</div>",
+                  "Mean Angle Index", "Mean Diagonal Index", "Mean Perf/Width Index", "Mean PCurve", "Mean Thickness/Width Index","Mean Volume Estimate", "Mean Sphericity Index"),
+    digits = 2,
+    align = c('l', 'c', 'c', 'c', 'c', 'c', 'c', 'c', 'c', 'c', 'c', 'c', 'c', 'c', 'c', 'c', 'c'),
+    caption = "Feature 6 Olivella Shell Beads and Bead Fragments",
+    escape = FALSE
+  ) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE, html_font = "'Avenir', 'Arial Nova', 'Arial', sans-serif"
+  ) %>%
+  column_spec(9:10, width = "3cm")
+all_beads_table_19
