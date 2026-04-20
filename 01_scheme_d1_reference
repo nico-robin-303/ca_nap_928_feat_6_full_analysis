@@ -1,0 +1,102 @@
+scheme_d1_reference <- tibble(
+  time_period = c(
+    rep("Early", 5),
+    rep("EMT", 1),
+    rep("M1", 8),
+    rep("M2a", 2),
+    rep("M2b", 4),
+    rep("M3", 2),
+    rep("M4", 6),
+    rep("MLT", 8),
+    rep("L1a", 1),
+    rep("L1b", 3),
+    rep("L1c", 3),
+    rep("L2", 6),
+    rep("Mission/Historic", 4)
+  ),
+  bead_type_assemblage = c("N", "L1a", "L1b", "L2a", "L2b",
+                           "C1",
+                           "C2", "C3", "G2a", "G2b", "G3a", "G3b", "G5a", "G5b",
+                           "F2a", "F2b",
+                           "F3a1", "F3a2", "F4c", "G2a",
+                           "F3a1", "F3b1",
+                           "F3a1", "F3a2", "F4c", "F4d", "G5a", "G5b",
+                           "C2", "C3", "C7", "D1a", "D2", "F3a1", "G1", "M1a",
+                           "M1a",
+                           "M1a", "M2a", "K1",
+                           "K1", "M1a", "M2a",
+                           "E1a1", "E2a1", "E2a2", "E3a", "E3b", "J2",
+                           "H1", "H2", "H3", "J1"),
+  period_rank = c(
+    rep(1, 5),
+    rep(2, 1),
+    rep(3, 8),
+    rep(4, 2),
+    rep(5, 4),
+    rep(6, 2),
+    rep(7, 6),
+    rep(8, 8),
+    rep(9, 1),
+    rep(10, 3),
+    rep(11, 3),
+    rep(12, 6),
+    rep(13, 4)
+  )
+)
+View(scheme_d1_reference)
+feat_6_beads_frags_2 <- feat_6_beads_frags %>%
+  mutate(bead_class = str_sub(bead_type, 1, 1)
+         )
+feat_6_bead_class <- unique(
+  feat_6_beads_frags_2$bead_class[!is.na(feat_6_beads_frags_2$bead_class)]
+)
+feat_6_bead_types <- unique(
+  feat_6_beads_frags_2$bead_type[!is.na(feat_6_beads_frags_2$bead_type)]
+  )
+scheme_d1_types <- unique(scheme_d1_reference$bead_type_assemblage
+)
+cat("Feature 6 Beads in Scheme D:", sum(feat_6_bead_types %in% scheme_d1_types),
+    "of",
+    length(feat_6_bead_types),
+    "\n")
+cat("Missing from data:", setdiff(scheme_d1_types, feat_6_bead_types), "\n")
+all_periods <- unique(scheme_d1_reference$time_period)
+cat("all time periods in reference:",
+    paste(all_periods, collapse = ", "), "\n")
+chronological_order <- c(
+  "Early",
+  "EMT",
+  "M1",
+  "M2a",
+  "M2b",
+  "M3",
+  "M4",
+  "MLT",
+  "L1a",
+  "L1b",
+  "L1c",
+  "L2",
+  "Mission/Historic"
+)
+bead_weights <- list(
+  "M1a" = 0.3,
+  "F" = 0.6,
+  "C" = 0.8,
+  "default" = 1.0
+)
+period_weights <- setNames(1:13, chronological_order)
+missing_weights <- setdiff(all_periods,
+                           names(period_weights))
+if  (length(missing_weights) > 0) {
+  cat("warning: missing weights for periods:",
+      paste(missing_weights, collapse = ", "), "\n")
+  for (period in missing_weights) {
+    period_weights[period] <- max(period_weights, na.rm = TRUE) +
+      1
+  }
+}
+diverging_13 <- colorRampPalette(brewer.pal(11, "RdYlBu"))(13)
+diverging_13_rev <- rev(diverging_13)
+names(diverging_13_rev) <- chronological_order
+cat("reveresed color assignment (cool to warm):\n")
+print(diverging_13_rev)
