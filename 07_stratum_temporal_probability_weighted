@@ -1,0 +1,87 @@
+weighted_temporal_probabilities_strats <- weighted_analysis_strats %>%
+  group_by(stratum) %>%
+  mutate(total_weighted_affinity = sum(weighted_affinity),
+         probability = weighted_affinity / total_weighted_affinity) %>%
+  left_join(
+    data.frame(time_period = chronological_order,
+               chrono_weight = 1:length(chronological_order)),
+    by = "time_period") %>%
+  mutate(stratum = factor(stratum, levels = c("3c", "3b", "3a", "3", "house floor", "2")))
+weighted_stratum_temporal_summary <- weighted_temporal_probabilities_strats %>%
+  group_by(stratum) %>%
+  summarise(
+    most_probable_period = time_period[which.max(probability)],
+    probability_score = max(probability),
+    temporal_span = max(chrono_weight[probability > 0.1]) - min(chrono_weight[probability > 0.1]),
+    distribution_entropy = -sum(probability * log(probability + 1e-10)),
+    .groups = "drop")
+bead_temporal_analysis_strats <-
+  complete_joined_data_strats %>%
+  filter(present == 1) %>%
+  group_by(bead_type_assemblage) %>%
+  summarise(
+    periods_present = n_distinct(time_period),
+    temporal_range = paste(sort(unique(time_period)),
+                           collapse = ", "),
+    total_occurrences = n(),
+    .groups = "drop") %>%
+  arrange(desc(periods_present))
+cat("bead types with widest temporal distributions:\n")
+print(bead_temporal_analysis_strats %>%
+        filter(periods_present > 3), n = 10)
+anomalous_occurrences_strats <-
+  complete_joined_data_strats %>%
+  filter(present == 1) %>%
+  left_join(scheme_d1_reference %>%
+              group_by(bead_type_assemblage) %>%
+              summarise(expected_periods = paste(sort(unique(time_period)),
+                                                 collapse = ", ")),
+            by = "bead_type_assemblage") %>%
+  mutate(
+    is_anomalous = ! str_detect(expected_periods, as.character(time_period))) %>%
+  filter(is_anomalous)
+cat("potentially anomalous bead occurrences:\n")
+print(anomalous_occurrences_strats %>%
+        select(stratum, bead_type_assemblage, time_period, expected_periods))
+weighted_bayesian_chronology_strats <-
+  weighted_temporal_probabilities_strats %>%
+  group_by(stratum) %>%
+  mutate(
+    stratigraphic_prior = 1 / (1 + abs(chrono_weight - cur_group_id())),
+    bayesian_posterior = probability * stratigraphic_prior,
+    bayesian_posterior = bayesian_posterior / sum(bayesian_posterior)) %>%
+  group_by(stratum) %>%
+  summarise(
+    bayesian_period = time_period[which.max(bayesian_posterior)],
+    bayesian_confidence = max(bayesian_posterior),
+    .groups = "drop")
+weighted_temporal_heatmap_strats <- ggplot(weighted_temporal_probabilities_strats,
+                                  aes(x = stratum, y = time_period, fill = probability)) +
+  geom_tile(color = "black") +
+  scale_fill_viridis_c(name = "Probability", option = "plasma") +
+  scale_y_discrete(limits = chronological_order) +
+  labs(
+    title = "Temporal Probability Distributions by Stratum (Weighted)",
+    subtitle = "Accounting for burial contamination and chronologically ambiguous bead types",
+    x = "Stratum",
+    y = "Time Period") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    text = element_text(family = "Avenir"))
+weighted_temporal_heatmap_strats
+weighted_final_robust_chronology <-
+  weighted_stratum_temporal_summary %>%
+  left_join(weighted_bayesian_chronology_strats, by = "stratum") %>%
+  left_join(
+    stratum_weighted_plot_data %>%
+      select(stratum, max_affinity, confidence),
+    by = "stratum") %>%
+  mutate(has_temporal_mixing = temporal_span > 3,
+         has_low_confidence = probability_score < 0.7,
+         has_high_entropy = distribution_entropy > 1.0,
+         recommended_period = ifelse(has_temporal_mixing, bayesian_period, most_probable_period))
+cat("weighted stratum chronology with confidence flags:\n")
+print(weighted_final_robust_chronology %>%
+        select(stratum, recommended_period, probability_score, temporal_span, has_temporal_mixing, has_low_confidence),
+      n = Inf)
