@@ -1,0 +1,74 @@
+weighted_analysis_strats <- complete_joined_data_strats %>%
+  mutate(
+    bead_weight = case_when(bead_type_assemblage == "M1a" ~ 0.3,
+                             str_sub(bead_type_assemblage, 1, 1) == "F" ~ 0.6,
+                             str_sub(bead_type_assemblage, 1, 1) == "C" ~ 0.8,
+                             TRUE ~ 1.0),
+    weighted_presence = present * bead_weight) %>%
+  group_by(stratum, time_period) %>%
+  summarise(
+    weighted_affinity = sum(weighted_presence) / sum(bead_weight),
+    .groups = "drop")
+weighted_period_affinity_strats <- weighted_analysis_strats %>%
+  pivot_wider(names_from = time_period, values_from = weighted_affinity) %>%
+  column_to_rownames("stratum") %>%
+  as.matrix()
+weighted_chronology_strats <- weighted_period_affinity_strats %>%
+  as.data.frame() %>%
+  rownames_to_column("stratum")
+weighted_chronology_strats$assigned_period <- NA
+weighted_chronology_strats$max_affinity <- NA
+weighted_chronology_strats$confidence <- NA
+for(i in
+    1:nrow(weighted_chronology_strats)) {
+  row_values_strats <- as.numeric(weighted_chronology_strats[i, chronological_order])
+  max_index_strats <- which.max(row_values_strats)
+  weighted_chronology_strats$max_affinity[i] <- row_values_strats[max_index_strats]
+  weighted_chronology_strats$assigned_period[i] <- chronological_order[max_index_strats]
+  sorted_values_strats <- sort(row_values_strats, decreasing = TRUE)
+  second_best_strats <- ifelse(length(sorted_values_strats) >= 2,
+                               sorted_values_strats[2], 0)
+  weighted_chronology_strats$confidence[i] <- weighted_chronology_strats$max_affinity[i] - second_best_strats
+}
+stratum_weighted_plot_data <- weighted_chronology_strats %>%
+  mutate(stratum = factor(stratum, levels = c("3c", "3b", "3a", "3", "house floor", "2")),
+         assigned_period = factor(assigned_period, levels = chronological_order, labels = chronological_order))
+cat("assigned period factor levels:\n")
+print(levels(stratum_weighted_plot_data$assigned_period))
+cat("unique assigned periods in data:\n")
+print(unique(stratum_weighted_plot_data$assigned_period))
+stratum_weighted_plot_data
+stratum_chronology_plot_weighted <- ggplot(stratum_weighted_plot_data,
+                                  aes(x= stratum, y = max_affinity)) +
+  geom_point(aes(size = confidence, fill = assigned_period),
+             alpha = 0.7, shape = 21, color = "black", stroke = 0.5) +
+  scale_size_continuous(
+    name = "Confidence",
+    range = c(8, 16),
+    limits = c(0, 1)
+  ) +
+  scale_fill_manual(name = "Assigned Period", values = diverging_13_rev,
+                    guide = guide_legend(override.aes = list(size = 4))
+  ) +
+  labs(
+    title = "Chronological Period Assignments by Stratum Sample (Weighted)",
+    subtitle = "Circle Size =  confidence level | Color = assigned period\nSmall circles indicate uncertain assignments",
+    x = "Stratum (Earliest → Latest)",
+    y = "Maximum Period Affinity"
+  ) +
+  theme_minimal() +
+  theme(
+    text = element_text(family = "Avenir"),
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(size = 11, color = "gray40", hjust = 0.5),
+    axis.title = element_text(size = 12, face = "bold"),
+    axis.text = element_text(size = 10),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.title = element_text(face = "bold", size = 11),
+    legend.text = element_text(size = 9),
+    legend.key.height = unit(10, "pt"),
+    legend.key.width = unit(10, "pt")
+  ) +
+  geom_text(aes(label = round(max_affinity, 2)),
+            size = 3, color = "black", fontface = "bold")
+stratum_chronology_plot_weighted
