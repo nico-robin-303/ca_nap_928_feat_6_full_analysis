@@ -1,0 +1,87 @@
+burial_50 <- feat_6_beads_frags %>% filter(context == 'BURIAL 50')
+burial_50_summary_for_table_18 <- burial_50 %>%
+  mutate(
+    super_category = case_when(
+      shell_type_clean %in% c("bead complete", "bead fragment") ~
+        "Beads",
+      shell_type_clean %in% c("Fragment",
+                              "Whole Shell") ~ "Non-Bead Shell",
+      TRUE ~ "Other/Unidentified"
+    )
+  ) %>%
+  group_by(super_category,
+           bead_type, shell_type_clean, bead_frag_portion) %>%
+  summarise(
+    n = sum(count, na.rm = TRUE),
+    mean_diameter = mean(diameter, na.rm = TRUE),
+    mean_length = mean(length, na.rm = TRUE),
+    mean_width = mean(width, na.rm = TRUE),
+    mean_perf_diameter = mean(perforation_diameter, na.rm = TRUE),
+    mean_curvature = mean(curvature, na.rm = TRUE),
+    mean_thickness = mean(thickness, na.rm = TRUE),
+    shelf_p = sum(shelf == "p", na.rm = TRUE),
+    shelf_a = sum(shelf == "a", na.rm = TRUE),
+    burnt_y = sum(burnt == "y", na.rm = TRUE),
+    burnt_n = sum(burnt == "n", na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(bead_type = case_when(
+    is.na(bead_type) ~ paste("-", shell_type_clean),
+    shell_type_clean == "bead fragment" ~ paste0(
+      bead_type, "<span style='font-size: 10px;'> (</span>", 
+      case_when(
+        bead_frag_portion == "1 quarter" ~ "<span style='font-size: 10px;'>¼ bead</span>",
+        bead_frag_portion == "half" ~ "<span style='font-size: 10px;'>½ bead</span>",
+        bead_frag_portion == "3 quarter" ~ "<span style='font-size: 10px;'>¾ bead</span>",
+        bead_frag_portion == "2 halves" ~ "<span style='font-size: 10px;'>re-fit: ½ + ½</span>",
+        bead_frag_portion == "half, 1 quarter" ~ "<span style='font-size: 10px;'>re-fit: ½ + ¼</span>",
+        is.na(bead_frag_portion) ~ "<span style='font-size: 10px;'>frag</span>",
+        is.nan(bead_frag_portion) ~ "<span style='font-size: 10px;'>frag</span>",
+        TRUE ~ bead_frag_portion
+      ),
+      "<span style='font-size: 10px;'>)</span>"
+    ),
+    TRUE ~ as.character(bead_type)
+  )
+  ) %>%
+  arrange(super_category, bead_type)
+View(burial_50_summary_for_table_18)
+burial_50_display_for_table_18 <- burial_50_summary_for_table_18 %>%
+  rowwise() %>%
+  mutate(
+    shelf_pie =
+      create_pie_unicode(shelf_p, shelf_a, "█", "░"),
+    burnt_pie =
+      create_pie_unicode(burnt_y, burnt_n, "█", "░")
+  ) %>%
+  ungroup() %>%
+  mutate(
+    mean_diameter = round(mean_diameter, 2),
+    mean_length = round(mean_length, 2),
+    mean_width = round(mean_width, 2),
+    mean_perf_diameter = round(mean_perf_diameter, 2),
+    mean_curvature = round(mean_curvature, 2),
+    mean_thickness = round(mean_thickness, 2),
+    across(c(n, mean_diameter, mean_length, mean_width, mean_perf_diameter, mean_curvature, mean_thickness), ~
+             replace(., is.na(.) | is.nan(.), "-"))
+  ) %>%
+  select(bead_type, n, mean_diameter, mean_length, mean_width, mean_perf_diameter, mean_curvature, mean_thickness, shelf_pie, burnt_pie)
+View(burial_50_display_for_table_18)
+burial_50_table_18 <- burial_50_display_for_table_18 %>%
+  kbl(
+    col.names = c("Bead Type / Shell Category", "Count (n)", "Mean Diameter", "Mean Length", "Mean Width", "Mean Perforation Diameter", "Mean Curvature", "Mean Thickness",
+                  "Shelf Presence <div style='font-size: 10px; line-height: 1.4;'>█ = present</div><div style='font-size: 10px; line-height: 1.4;'>░ = absent</div>",
+                  "Burnt <div style='font-size: 10px; line-height: 1.4;'>█ = yes</div><div style='font-size: 10px; line-height: 1.4;'>░ = no</div>"),
+    digits = 2,
+    align = c('l', 'c', 'c', 'c', 'c', 'c', 'c', 'c', 'c', 'c'),
+    caption = "Burial 50 Olivella Beads and Fragments",
+    escape = FALSE
+  ) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE, html_font = "'Avenir', 'Arial Nova', 'Arial', sans-serif"
+  ) %>%
+  column_spec(9:10, width = "3cm")
+group_index_18 <- c("Beads" =
+                      sum(burial_50_summary_for_table_18$super_category == "Beads"),
+                    "Non-Bead Shell" = sum(burial_50_summary_for_table_18$super_category == "Non-Bead Shell"))
+burial_50_table_18 <- burial_50_table_18 %>% pack_rows(index = group_index_18, indent = FALSE)
+burial_50_table_18
