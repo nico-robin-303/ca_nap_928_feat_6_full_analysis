@@ -1,0 +1,151 @@
+bead_morphology <- feat_6_beads_frags_2 %>%
+  filter(!is.na(length) & !is.na(width) & !is.na(thickness)) %>%
+  mutate(
+    width_length_index = width / length,
+    perfect_square_diagonal = sqrt(length^2 + width^2),
+    angle_index = long_diagonal / perfect_square_diagonal,
+    diagonal_index = long_diagonal / short_diagonal,
+    perf_width_index = perforation_diameter / width,
+    pcurve = (curvature - thickness) / thickness,
+    thickness_width_index = thickness / width,
+    volume_estimate = length * width * thickness,
+    sphericity_index = (36 * pi * volume_estimate^2)^(1/3) / (length + width +thickness)) %>%
+  mutate(across(where(is.numeric),
+                ~ ifelse(is.infinite(.) | is.nan(.), NA, .)))
+cat("bead morphology indices calculated:\n")
+glimpse(bead_morphology %>%
+          select(bead_type, length, width, width_length_index, angle_index, perf_width_index))
+morphology_summary <- bead_morphology %>%
+  group_by(bead_type) %>%
+  summarise(
+    n = n(),
+    wl_mean = mean(width_length_index, na.rm = TRUE),
+    wl_sd = sd(width_length_index, na.rm = TRUE),
+    wl_cv = wl_sd / wl_mean,
+    angle_mean = mean(angle_index, na.rm = TRUE),
+    angle_sd = sd(angle_index, na.rm = TRUE),
+    diag_mean = mean(diagonal_index, na.rm = TRUE),
+    diag_sd = sd(diagonal_index, na.rm = TRUE),
+    perf_mean = mean(perf_width_index, na.rm = TRUE),
+    perf_sd = sd(perf_width_index, na.rm = TRUE),
+    pcurv_mean = mean(pcurve, na.rm = TRUE),
+    pcurv_sd = sd(pcurve, na.rm = TRUE),
+    .groups = "drop") %>%
+  filter(n >= 3)
+cat("morphological summary by bead type:\n")
+print(morphology_summary, n = 23)
+pca_data <- bead_morphology %>%
+  select(bead_type, width_length_index, angle_index, diagonal_index, perf_width_index, pcurve, thickness_width_index) %>%
+  na.omit()
+morphology_pca <- PCA(pca_data[, -1], graph = FALSE, quali.sup = 1)
+pca_scores <- as.data.frame(morphology_pca$ind$coord)
+pca_scores$bead_type <- pca_data$bead_type
+cat("PCA score column names:\n")
+print(names(pca_scores))
+group_means <- pca_scores %>%
+  group_by(bead_type) %>%
+  summarise(
+    PC1_mean = mean(Dim.1),
+    PC2_mean = mean(Dim.2),
+    PC1_se = sd(Dim.1) / sqrt(n()),
+    PC2_se = sd(Dim.2) / sqrt(n()),
+    n = n()
+  )
+cat("group means calculated:\n")
+print(group_means)
+pca_scores$mahalanobis <- mahalanobis(pca_scores[, c("Dim.1", "Dim.2")],
+                                      colMeans(pca_scores[, c("Dim.1", "Dim.2")]),
+                                      cov(pca_scores[, c("Dim.1", "Dim.2")]))
+outlier_threshold <- quantile(pca_scores$mahalanobis, 0.99)
+outliers <- pca_scores[pca_scores$mahalanobis > outlier_threshold, ]
+cat("identified outliers:\n")
+print(outliers[, c("bead_type", "Dim.1", "Dim.2", "mahalanobis")])
+pca_scores_clean <- pca_scores[pca_scores$mahalanobis <= outlier_threshold, ]
+cat("data points before:\n", nrow(pca_scores), "\n")
+cat("data points after outlier removal:", nrow(pca_scores_clean), "\n")
+group_means_clean <- pca_scores_clean %>%
+  group_by(bead_type) %>%
+  summarise(
+    PC1_mean = mean(Dim.1),
+    PC2_mean = mean(Dim.2),
+    n = n()
+  )
+cat("group means after outlier removal:\n")
+print(group_means_clean)
+present_bead_types <- unique(pca_scores_clean$bead_type)
+custom_colors <- bead_type_colors[names(bead_type_colors) %in% present_bead_types]
+cat("bead types in PCA data:\n")
+print(present_bead_types)
+cat("colors available for these types:\n")
+print(custom_colors)
+pca_plot_clean <- ggplot() +
+  geom_point(data = pca_scores_clean,
+             aes(x = Dim.1, y = Dim.2, color = bead_type),
+             alpha = 0.6, size = 2.5) +
+  geom_point(data = group_means_clean,
+             aes(x = PC1_mean, y = PC2_mean, color = bead_type),
+             size = 5, shape = 18, fill = "white") +
+  geom_text(data = group_means_clean,
+            aes(x = PC1_mean, y = PC2_mean,
+                label = paste0("n=", n)),
+            vjust = -1.2, size = 3, color = "black", fontface = "bold") +
+  scale_color_manual(name = "Bead Type",
+                     values = custom_colors) +
+  labs(
+    title = "Bead Morphological PCA (Outliers Removed)",
+    subtitle = "Diamonds show group means",
+    x = paste0("PC1 (",
+               round(morphology_pca$eig[1,2], 1), "%)"),
+    y = paste0("PC2 (", round(morphology_pca$eig[2,2], 1), "%)")) +
+  theme_minimal() +
+  theme(text = element_text(family = "Avenir"),
+        plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
+        plot.subtitle = element_text(size = 11, color = "gray40", hjust = 0.5),
+        axis.title = element_text(size = 12, face = "bold"),
+        legend.title = element_text(face = "bold", size = 11),
+        legend.text = element_text(size = 10),
+        panel.grid.minor = element_blank())
+pca_plot_clean
+standarization_stats <- pca_scores_clean %>%
+  group_by(bead_type) %>%
+  summarise(
+    n = n(),
+    pc1_cv = sd(Dim.1, na.rm = TRUE) / abs(mean(Dim.1, na.rm = TRUE)),
+    pc2_cv = sd(Dim.2, na.rm = TRUE) / abs(mean(Dim.2, na.rm = TRUE)),
+    pc1_mean = mean(Dim.1, na.rm = TRUE),
+    pc2_mean = mean(Dim.2, na.rm = TRUE),
+    pc1_sd = sd(Dim.1, na.rm = TRUE),
+    pc2_sd = sd(Dim.2, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  arrange(pc1_cv)
+cat("standardization by bead type (lower CV = more standardized):")
+print(standarization_stats, n = 27)
+cat("variable contributions to PC1:\n")
+pc1_loadings <- morphology_pca$var$coord[,1]
+pc1_contrib <- (pc1_loadings^2 / sum(pc1_loadings^2)) * 100
+print(sort(pc1_contrib, decreasing = TRUE))
+cat("variable contributions to PC2:\n")
+pc2_loadings <- morphology_pca$var$coord[,2]
+pc2_contrib <- (pc2_loadings^2 / sum(pc2_loadings^2)) * 100
+print(sort(pc2_contrib, decreasing = TRUE))
+class_patterns <- pca_scores_clean %>%
+  mutate(bead_class = str_sub(bead_type, 1, 1)) %>%
+  group_by(bead_class) %>%
+  summarise(
+    mean_PC1 = mean(Dim.1),
+    mean_PC2 = mean(Dim.2),
+    pc1_range = max(Dim.1) - min(Dim.1),
+    pc2_range = max(Dim.2) - min(Dim.2),
+    n = n()
+  )
+cat("morphological patterns by bead class:\n")
+print(class_patterns)
+loading_plot <- fviz_pca_var(morphology_pca,
+                             col.var = "contrib",
+                             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+                             repel = TRUE) +
+  labs(title = "Variable Contributions to PCA",
+       subtitle = "Arrow length and color show contribution to PC1/PC2") +
+  theme(text = element_text(family = "Avenir"))
+loading_plot
