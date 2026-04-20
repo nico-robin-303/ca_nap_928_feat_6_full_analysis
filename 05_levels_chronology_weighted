@@ -1,0 +1,74 @@
+weighted_analysis_levels <- complete_joined_data_levels %>%
+  mutate(
+    bead_weight = case_when(bead_type_assemblage == "M1a" ~ 0.3,
+                            str_sub(bead_type_assemblage, 1, 1) == "F" ~ 0.6,
+                            str_sub(bead_type_assemblage, 1, 1) == "C" ~ 0.8,
+                            TRUE ~ 1.0),
+    weighted_presence = present * bead_weight) %>%
+  group_by(depth_cm, time_period) %>%
+  summarise(
+    weighted_affinity = sum(weighted_presence) / sum(bead_weight),
+    .groups = "drop")
+weighted_period_affinity_levels <- weighted_analysis_levels %>%
+  pivot_wider(names_from = time_period, values_from = weighted_affinity) %>%
+  column_to_rownames("depth_cm") %>%
+  as.matrix()
+weighted_chronology_levels <- weighted_period_affinity_levels %>%
+  as.data.frame() %>%
+  rownames_to_column("depth_cm")
+weighted_chronology_levels$assigned_period <- NA
+weighted_chronology_levels$max_affinity <- NA
+weighted_chronology_levels$confidence <- NA
+for(i in
+    1:nrow(weighted_chronology_levels)) {
+  row_values_levels <- as.numeric(weighted_chronology_levels[i, chronological_order])
+  max_index_levels <- which.max(row_values_levels)
+  weighted_chronology_levels$max_affinity[i] <- row_values_levels[max_index_levels]
+  weighted_chronology_levels$assigned_period[i] <- chronological_order[max_index_levels]
+  sorted_values_levels <- sort(row_values_levels, decreasing = TRUE)
+  second_best_levels <- ifelse(length(sorted_values_levels) >= 2,
+                               sorted_values_levels[2], 0)
+  weighted_chronology_levels$confidence[i] <- weighted_chronology_levels$max_affinity[i] - second_best_levels
+}
+levels_weighted_plot_data <- weighted_chronology_levels %>%
+  mutate(depth_cm = factor(depth_cm, levels = c("110-120", "100-110", "90-100", "80-90", "70-80", "60-70", "50-60", "40-50", "30-40")),
+         assigned_period = factor(assigned_period, levels = chronological_order, labels = chronological_order))
+cat("assigned period factor levels:\n")
+print(levels(levels_weighted_plot_data$assigned_period))
+cat("unique assigned periods in data:\n")
+print(unique(levels_weighted_plot_data$assigned_period))
+levels_weighted_plot_data
+levels_chronology_plot_weighted <- ggplot(levels_weighted_plot_data,
+                                           aes(x= depth_cm, y = max_affinity)) +
+  geom_point(aes(size = confidence, fill = assigned_period),
+             alpha = 0.7, shape = 21, color = "black", stroke = 0.5) +
+  scale_size_continuous(
+    name = "Confidence",
+    range = c(8, 16),
+    limits = c(0, 1)
+  ) +
+  scale_fill_manual(name = "Assigned Period", values = diverging_13_rev,
+                    guide = guide_legend(override.aes = list(size = 4))
+  ) +
+  labs(
+    title = "Chronological Period Assignments by Arbitrary 10cm Level (Weighted)",
+    subtitle = "Circle Size =  confidence level | Color = assigned period\nSmall circles indicate uncertain assignments",
+    x = "Depth (cmbs)",
+    y = "Maximum Period Affinity"
+  ) +
+  theme_minimal() +
+  theme(
+    text = element_text(family = "Avenir"),
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(size = 11, color = "gray40", hjust = 0.5),
+    axis.title = element_text(size = 12, face = "bold"),
+    axis.text = element_text(size = 10),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.title = element_text(face = "bold", size = 11),
+    legend.text = element_text(size = 9),
+    legend.key.height = unit(10, "pt"),
+    legend.key.width = unit(10, "pt")
+  ) +
+  geom_text(aes(label = round(max_affinity, 2)),
+            size = 3, color = "black", fontface = "bold")
+levels_chronology_plot_weighted
