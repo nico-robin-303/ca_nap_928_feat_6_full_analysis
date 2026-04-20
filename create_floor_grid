@@ -1,0 +1,24 @@
+create_floor_grid <- function(points, grid_resolution = 25) {
+  x_seq <- seq(min(points$easting),
+               max(points$easting),
+               length.out = grid_resolution)
+  y_seq <- seq(min(points$northing),
+               max(points$northing),
+               length.out = grid_resolution)
+  grid_df <- expand.grid(easting = x_seq, northing = y_seq)
+  grid_df$depth <- apply(grid_df, 1, function(coord) {
+    distances <- sqrt((coord["easting"] - points$easting)^2 +
+                        (coord["northing"] - points$northing)^2)
+    if (any(distances == 0)) {
+      return(points$depth[which(distances == 0)[1]])
+    }
+    weights <- 1 / (distances^2 + 0.001)
+    weighted_depth <- sum(points$depth * weights) / sum(weights)
+    return(weighted_depth)
+  })
+  depth_matrix <- matrix(grid_df$depth,
+                         nrow = length(x_seq),
+                         ncol = length(y_seq),
+                         byrow = FALSE)
+  return(list(x = x_seq, y = y_seq, z = depth_matrix))
+}
