@@ -1,0 +1,60 @@
+create_clean_unit_wireframes <- function(unit_metadata) {
+  all_boxes <- list()
+  for(i in 1:nrow(unit_metadata)) {
+    unit <- unit_metadata[i, ]
+    sw_bottom <- c(unit$sw_easting, unit$sw_northing, unit$max_depth)
+    se_bottom <- c(unit$se_easting, unit$se_northing, unit$max_depth)
+    ne_bottom <- c(unit$ne_easting, unit$ne_northing, unit$max_depth)
+    nw_bottom <- c(unit$nw_easting, unit$nw_northing, unit$max_depth)
+    sw_top <- c(unit$sw_easting, unit$sw_northing, unit$min_depth)
+    se_top <- c(unit$se_easting, unit$se_northing, unit$min_depth)
+    ne_top <- c(unit$ne_easting, unit$ne_northing, unit$min_depth)
+    nw_top <- c(unit$nw_easting, unit$nw_northing, unit$min_depth)
+    box_data <- data.frame(
+      easting = c(
+        sw_bottom[1], se_bottom[1], NA,
+        se_bottom[1], ne_bottom[1], NA,
+        ne_bottom[1], nw_bottom[1], NA,
+        nw_bottom[1], sw_bottom[1], NA,
+        sw_bottom[1], sw_top[1], NA,
+        se_bottom[1], se_top[1], NA,
+        ne_bottom[1], ne_top[1], NA,
+        nw_bottom[1], nw_top[1], NA,
+        sw_top[1], se_top[1], NA,
+        se_top[1], ne_top[1], NA,
+        ne_top[1], nw_top[1], NA,
+        nw_top[1], sw_top[1], NA,
+      NA),
+      northing = c(
+        sw_bottom[2], se_bottom[2], NA,
+        se_bottom[2], ne_bottom[2], NA,
+        ne_bottom[2], nw_bottom[2], NA,
+        nw_bottom[2], sw_bottom[2], NA,
+        sw_bottom[2], sw_top[2], NA,
+        se_bottom[2], se_top[2], NA,
+        ne_bottom[2], ne_top[2], NA,
+        nw_bottom[2], nw_top[2], NA,
+        sw_top[2], se_top[2], NA,
+        se_top[2], ne_top[2], NA,
+        ne_top[2], nw_top[2], NA,
+        nw_top[2], sw_top[2], NA,
+      NA),
+      depth = c(
+        sw_bottom[3], se_bottom[3], NA,
+        se_bottom[3], ne_bottom[3], NA,
+        ne_bottom[3], nw_bottom[3], NA,
+        nw_bottom[3], sw_bottom[3], NA,
+        sw_bottom[3], sw_top[3], NA,
+        se_bottom[3], se_top[3], NA,
+        ne_bottom[3], ne_top[3], NA,
+        nw_bottom[3], nw_top[3], NA,
+        sw_top[3], se_top[3], NA,
+        se_top[3], ne_top[3], NA,
+        ne_top[3], nw_top[3], NA,
+        nw_top[3], sw_top[3], NA,
+      NA)
+    )
+    all_boxes <- bind_rows(all_boxes, box_data)
+  }
+  return(all_boxes)
+}
